@@ -15,23 +15,23 @@ class StateManager():
         self.metadata_dir = metadata_dir
         self.end_pattern = end_pattern
 
-    def determine_most_recent_weights(self):
+    def determine_most_recent_state(self):
         state = State(0, ".weights", exists=False)
         for path in os.listdir(self.weights_dir):
             parts = re.match(generate_full_pattern(self.end_pattern), path)
-            if parts and (not state.exists  or weight_index > most_recent_weight_path):
+            if parts and (not state.exists or int(parts.group(1)) > state.epoch):
                 state = State(epoch=int(parts.group(1)), suffix=parts.group(2), exists=True)
         return state
     
     def give_most_recent_weights(self, model: "torch.nn.Module", map_location: "torch.cuda.device"):
-        last_state = self.determine_most_recent_weights()
+        last_state = self.determine_most_recent_state()
         if last_state.exists:
-            model.load_state_dict(torch.load(os.path.join(self.weights_dir, last_state.get_weights_basename())), map_location=map_location)
+            model.load_state_dict(torch.load(os.path.join(self.weights_dir, last_state.get_weights_basename()), map_location=map_location))
         else:
             print("No saved models")
         
     def commit(self, model: "torch.nn.Module", message: str = ""):
-        new_state = self.determine_most_recent_weights().advanced()
+        new_state = self.determine_most_recent_state().advanced()
         new_weights_path = os.path.join(self.weights_dir, new_state.get_weights_basename())
         torch.save(model.state_dict(), new_weights_path)
         if message:
@@ -43,7 +43,7 @@ class State():
     def __init__(self, epoch: int, suffix: str, exists=True):
         self.epoch = epoch
         self.suffix = suffix
-        self.exists = False
+        self.exists = exists
 
     def get_weights_basename(self):
         return "%d%s" % (self.epoch, self.suffix)
