@@ -1,2 +1,6 @@
 weights
+__pycache__
 messages
+yolov5s.pt
+records
+#*

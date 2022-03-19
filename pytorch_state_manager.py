@@ -1,55 +1,102 @@
+import json
 import os
 import re
 import torch
 
 def generate_full_pattern(end_pattern: str):
     return "(?!\.)(.*)" + end_pattern + "$"
+    
+class State():
+    def __init__(self, epoch: int, suffix: str, weights_dir: str, messages_dir: str, records_dir: str, exists=False):
+        self.exists = exists
+        self.epoch = epoch
+        self.suffix = suffix
+        self.weights_dir = weights_dir
+        self.records_dir = records_dir
+        self.messages_dir = messages_dir
+        self.weights_path = os.path.join(weights_dir, "%d%s" % (epoch, suffix))
+        self.messages_path = os.path.join(messages_dir, "%d.txt" % epoch)
+        self.records_path = os.path.join(records_dir, "%d.json" % epoch)
+
+    def advanced(self):
+        return State(self.epoch + 1, self.suffix, self.weights_dir, self.messages_dir, self.records_dir, self.exists)
+    def log(self):
+        return Log(self.messages_path, self.records_path)
+
+    def stage(self, model):
+        return Stage(model, self.weights_path)
+        
+    def give_weights(self, model, device):
+        model.load_state_dict(torch.load(self.weights_path, map_location=device))
+
+class Stage():
+    def __init__(self, model: "torch.nn.Module", weights_path: str):
+        self.model = model
+        self.weights_path = weights_path
+
+    def write(self):
+        torch.save(self.model.state_dict(), self.weights_path)
+
+class Log():
+    def __init__(self,  messages_path: str, records_path: str):
+        self.buf = ""
+        self.records = {}
+        self.messages_path = messages_path
+        self.records_path = records_path
+        
+        if os.path.isfile(messages_path):
+            with open(messages_path) as messages_file:
+                self.buf = messages_file.read()
+        if os.path.isfile(records_path):
+            with open(records_path) as records_file:
+                self.records = json.load(records_file)
+
+    def log_and_print(self, *messages, end="\n"):
+        self.log(*messages, end=end)
+        print(*messages, end=end)
+
+    def record_and_print(self, message: str, key: str, value, end="\n"):
+        self.records[key] = value
+        self.log_and_print(message % value, end=end)
+    
+    def log(self, *messages, end="\n"):
+        for i, message in enumerate(messages):
+            self.buf += str(message) + (" " if i != len(messages) - 1 else "")
+        self.buf += end
+
+    def write(self):
+        if self.buf: 
+            with open(self.messages_path, "w") as output_file:
+                output_file.write(self.buf)
+        if self.records:
+            with open(self.records_path, "w") as output_file:
+                json.dump(self.records, output_file)
+                
 
 class StateManager():
-    def __init__(self, weights_dir, metadata_dir, end_pattern="(\.(pth?|weights))$"):
+    def __init__(self, weights_dir, messages_dir, records_dir="", end_pattern="(\.(pth?|weights))$"):
         if not os.path.isdir(weights_dir):
             os.mkdir(metadata_dir)
         self.weights_dir = weights_dir
-        if not os.path.isdir(metadata_dir):
-            os.mkdir(metadata_dir)
-        self.metadata_dir = metadata_dir
+        if not os.path.isdir(messages_dir):
+            os.mkdir(messages_dir)
+        self.messages_dir = messages_dir
+        if not records_dir:
+            self.records_dir = messages_dir
+        else:
+            if not os.path.isdir(records_dir):
+                os.mkdir(records_dir)
+            self.records_dir = records_dir
         self.end_pattern = end_pattern
-
-    def determine_most_recent_state(self):
-        state = State(0, ".weights", exists=False)
+    
+    def most_recent_state(self):
+        epoch, suffix, exists = 0, ".weights", False
         for path in os.listdir(self.weights_dir):
             parts = re.match(generate_full_pattern(self.end_pattern), path)
-            if parts and (not state.exists or int(parts.group(1)) > state.epoch):
-                state = State(epoch=int(parts.group(1)), suffix=parts.group(2), exists=True)
-        return state
+            if parts and (not exists or int(parts.group(1)) > epoch):
+                epoch, suffix, exists = int(parts.group(1)), parts.group(2), True
+        return State(epoch, suffix, self.weights_dir, self.messages_dir, self.records_dir, exists)
     
-    def give_most_recent_weights(self, model: "torch.nn.Module", map_location: "torch.cuda.device"):
-        last_state = self.determine_most_recent_state()
-        if last_state.exists:
-            model.load_state_dict(torch.load(os.path.join(self.weights_dir, last_state.get_weights_basename()), map_location=map_location))
-        else:
-            print("No saved models")
-        
-    def commit(self, model: "torch.nn.Module", message: str = ""):
-        new_state = self.determine_most_recent_state().advanced()
-        new_weights_path = os.path.join(self.weights_dir, new_state.get_weights_basename())
-        torch.save(model.state_dict(), new_weights_path)
-        if message:
-            new_message_path = os.path.join(self.metadata_dir, new_state.get_message_basename())
-            with open(new_message_path, "w") as message_file:
-                message_file.write(message)
-
-class State():
-    def __init__(self, epoch: int, suffix: str, exists=True):
-        self.epoch = epoch
-        self.suffix = suffix
-        self.exists = exists
-
-    def get_weights_basename(self):
-        return "%d%s" % (self.epoch, self.suffix)
-
-    def get_message_basename(self):
-        return "%d.txt" % self.epoch
-        
-    def advanced(self):
-        return State(self.epoch + 1, self.suffix)
+    def stage_and_log(self, model: "torch.nn.Module"):
+        new_state = self.most_recent_state().advanced()
+        return new_state.stage(model), new_state.log()
