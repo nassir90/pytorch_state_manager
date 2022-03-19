@@ -89,7 +89,7 @@ class StateManager():
             self.records_dir = records_dir
         self.end_pattern = end_pattern
     
-    def most_recent_state(self):
+    def last_state(self):
         epoch, suffix, exists = 0, ".weights", False
         for path in os.listdir(self.weights_dir):
             parts = re.match(generate_full_pattern(self.end_pattern), path)
@@ -98,5 +98,5 @@ class StateManager():
         return State(epoch, suffix, self.weights_dir, self.messages_dir, self.records_dir, exists)
     
     def stage_and_log(self, model: "torch.nn.Module"):
-        new_state = self.most_recent_state().advanced()
+        new_state = self.last_state().advanced()
         return new_state.stage(model), new_state.log()
