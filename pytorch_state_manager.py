@@ -89,7 +89,15 @@ class StateManager():
                 os.mkdir(records_dir)
             self.records_dir = records_dir
         self.end_pattern = end_pattern
-    
+
+    def recall(self, epoch: int):
+        suffix, exists = ".weights", False
+        for path in os.listdir(self.weights_dir):
+            parts = re.match(generate_full_pattern(self.end_pattern), path)
+            if parts and (int(parts.group(1)) == epoch):
+                suffix, exists = parts.group(2), True
+        return State(epoch, suffix, self.weights_dir, self.messages_dir, self.records_dir, exists)
+                          
     def last_state(self):
         epoch, suffix, exists = 0, ".weights", False
         for path in os.listdir(self.weights_dir):
@@ -98,6 +106,6 @@ class StateManager():
                 epoch, suffix, exists = int(parts.group(1)), parts.group(2), True
         return State(epoch, suffix, self.weights_dir, self.messages_dir, self.records_dir, exists)
     
-    def stage(self, model: "torch.nn.Module"):
+    def stage(self):
         new_state = self.last_state().advanced()
         return new_state.weights(), new_state.log()
