@@ -20,22 +20,22 @@ class State():
 
     def advanced(self):
         return State(self.epoch + 1, self.suffix, self.weights_dir, self.messages_dir, self.records_dir, self.exists)
+
     def log(self):
         return Log(self.messages_path, self.records_path)
 
-    def stage(self, model):
-        return Stage(model, self.weights_path)
-        
-    def give_weights(self, model, device):
-        model.load_state_dict(torch.load(self.weights_path, map_location=device))
+    def weights(self):
+        return Weights(self.weights_path)
 
-class Stage():
-    def __init__(self, model: "torch.nn.Module", weights_path: str):
-        self.model = model
+class Weights():
+    def __init__(self, weights_path: str):
         self.weights_path = weights_path
 
-    def write(self):
-        torch.save(self.model.state_dict(), self.weights_path)
+    def commit(self, model):
+        torch.save(model.state_dict(), self.weights_path)
+        
+    def load(self, model, device):
+        model.load_state_dict(torch.load(self.weights_path, map_location=device))
 
 class Log():
     def __init__(self,  messages_path: str, records_path: str):
@@ -64,7 +64,7 @@ class Log():
             self.buf += str(message) + (" " if i != len(messages) - 1 else "")
         self.buf += end
 
-    def write(self):
+    def commit(self):
         if self.buf: 
             with open(self.messages_path, "w") as output_file:
                 output_file.write(self.buf)
@@ -97,6 +97,6 @@ class StateManager():
                 epoch, suffix, exists = int(parts.group(1)), parts.group(2), True
         return State(epoch, suffix, self.weights_dir, self.messages_dir, self.records_dir, exists)
     
-    def stage_and_log(self, model: "torch.nn.Module"):
+    def stage(self, model: "torch.nn.Module"):
         new_state = self.last_state().advanced()
-        return new_state.stage(model), new_state.log()
+        return new_state.weights(), new_state.log()
