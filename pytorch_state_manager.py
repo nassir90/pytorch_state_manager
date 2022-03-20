@@ -33,9 +33,10 @@ class Weights():
 
     def write(self, model):
         torch.save(model.state_dict(), self.weights_path)
-        
+
     def load(self, model, device):
-        model.load_state_dict(torch.load(self.weights_path, map_location=device))
+        if os.path.isfile(self.weights_path):
+            model.load_state_dict(torch.load(self.weights_path, map_location=device))
 
 class Log():
     def __init__(self,  messages_path: str, records_path: str):
