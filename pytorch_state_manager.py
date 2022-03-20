@@ -31,7 +31,7 @@ class Weights():
     def __init__(self, weights_path: str):
         self.weights_path = weights_path
 
-    def commit(self, model):
+    def write(self, model):
         torch.save(model.state_dict(), self.weights_path)
         
     def load(self, model, device):
@@ -64,7 +64,7 @@ class Log():
             self.buf += str(message) + (" " if i != len(messages) - 1 else "")
         self.buf += end
 
-    def commit(self):
+    def write(self):
         if self.buf: 
             with open(self.messages_path, "w") as output_file:
                 output_file.write(self.buf)
