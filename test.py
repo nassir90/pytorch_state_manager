@@ -1,12 +1,12 @@
-from pytorch_state_manager import StateManager as S, Log as L
+from unified import UnifiedStateManager as U
 import torch
 
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 model = torch.hub.load('ultralytics/yolov5', 'yolov5s')
 
-s = S('weights', 'messages', 'records')
+s = U('checkpoints')
 last_state = s.recall(1)
-print(last_state.epoch, "does", "exist" if last_state.exists else "not exist")
+print(last_state.epoch, "does", "exist" if last_state.weights().exists() else "not exist")
 last_state.weights().load(model, device)
 w, l = s.stage()
 l.log("hello", 5)
