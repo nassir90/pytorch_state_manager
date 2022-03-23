@@ -23,7 +23,7 @@ class Log():
 
     def record_and_print(self, message: str, key: str, value, end="\n"):
         self.records[key] = value
-        self.log_and_print(message % value, end=end)
+        self.log_and_print(message.format(value), end=end)
     
     def log(self, *messages, end="\n"):
         for i, message in enumerate(messages):
