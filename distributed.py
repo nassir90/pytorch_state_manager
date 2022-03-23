@@ -6,7 +6,7 @@ from state import State
 def generate_full_pattern(end_pattern: str):
     return "(?!\.)(.*)" + end_pattern + "$"
                 
-class StateManager():
+class DistributedStateManager():
     def __init__(self, weights_dir, messages_dir, records_dir="", end_pattern="(\.(pth?|weights))$"):
         if not os.path.isdir(weights_dir):
             os.mkdir(metadata_dir)
